@@ -1,0 +1,35 @@
+@if (Result is not null)
+{
+    <div class="alert @AlertCssClass mt-4 mb-0" role="status" aria-live="polite">
+        <div class="text-center fs-4 fw-semibold">
+            @Label @NumberFormatter.Money(Math.Abs(Result.NetAmount))
+        </div>
+        <dl class="row mb-0 mt-3 mx-auto" style="max-width: 24rem">
+            <dt class="col-7 fw-normal">Wynik brutto</dt>
+            <dd class="col-5 text-end mb-1">@NumberFormatter.Money(Result.GrossAmount)</dd>
+            <dt class="col-7 fw-normal">Podatek Belki (@CapitalGainsTax.RatePercent%)</dt>
+            <dd class="col-5 text-end mb-1">@NumberFormatter.Money(Result.CapitalGainsTax)</dd>
+            <dt class="col-7">Wynik netto</dt>
+            <dd class="col-5 text-end mb-0 fw-semibold">@NumberFormatter.Money(Result.NetAmount)</dd>
+        </dl>
+    </div>
+}
+
+@code {
+    [Parameter]
+    public ProfitLossResult? Result { get; set; }
+
+    private string AlertCssClass => Result?.Kind switch
+    {
+        ProfitLossKind.Profit => "alert-success",
+        ProfitLossKind.Loss => "alert-danger",
+        _ => "alert-warning",
+    };
+
+    private string Label => Result?.Kind switch
+    {
+        ProfitLossKind.Profit => "Zysk",
+        ProfitLossKind.Loss => "Strata",
+        _ => string.Empty,
+    };
+}

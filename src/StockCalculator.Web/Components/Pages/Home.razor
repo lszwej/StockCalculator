@@ -1,0 +1,144 @@
+@page "/"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject IStockTradeCalculator Calculator
+@inject ILogger<Home> Logger
+
+<PageTitle>Kalkulator zysku i straty z akcji</PageTitle>
+
+<h1 class="h3 mb-4" tabindex="-1">Kalkulator zysku i straty z akcji</h1>
+
+<div class="row g-4">
+    <div class="col-md-6">
+        <TradeForm @key="buyContext" Title="Kupno" IdPrefix="buy" EditContext="buyContext" Calculation="result?.Buy" />
+    </div>
+    <div class="col-md-6">
+        <TradeForm @key="sellContext" Title="Sprzedaż" IdPrefix="sell" EditContext="sellContext" Calculation="result?.Sell" />
+    </div>
+</div>
+
+<div class="d-flex gap-2 mt-4">
+    <button type="button" class="btn btn-primary" @onclick="Calculate">Przelicz</button>
+    <button type="button" class="btn btn-outline-secondary" @onclick="Reset">Wyczyść</button>
+</div>
+
+@if (errorMessage is not null)
+{
+    <div class="alert alert-danger mt-4 mb-0" role="alert">@errorMessage</div>
+}
+
+<ProfitLossSummary Result="result" />
+
+@code {
+    private EditContext buyContext = default!;
+    private EditContext sellContext = default!;
+    private ValidationMessageStore sellQuantityMessages = default!;
+    private ProfitLossResult? result;
+    private string? errorMessage;
+
+    protected override void OnInitialized() => CreateForms();
+
+    private void Calculate()
+    {
+        ClearOutcome();
+        sellQuantityMessages.Clear();
+
+        var isBuyValid = buyContext.Validate();
+        var isSellValid = sellContext.Validate();
+        if (!isBuyValid || !isSellValid || !ValidateSellQuantityAgainstBuy())
+        {
+            Logger.LogWarning(
+                "Calculation rejected by form validation. Buy errors: {BuyErrors}. Sell errors: {SellErrors}",
+                buyContext.GetValidationMessages().ToArray(),
+                sellContext.GetValidationMessages().ToArray());
+            return;
+        }
+
+        try
+        {
+            result = Calculator.CalculateProfitLoss(BuyModel.ToTradeInput(), SellModel.ToTradeInput());
+        }
+        catch (Exception exception) when (exception is ArgumentException or OverflowException)
+        {
+            errorMessage = "Nie udało się przeliczyć wartości. Sprawdź wprowadzone dane.";
+        }
+    }
+
+    private void Reset()
+    {
+        DetachForms();
+        CreateForms();
+    }
+
+    private void CreateForms()
+    {
+        buyContext = CreateEditContext();
+        sellContext = CreateEditContext();
+        sellQuantityMessages = new ValidationMessageStore(sellContext);
+        ClearOutcome();
+    }
+
+    private TradeFormModel BuyModel => (TradeFormModel)buyContext.Model;
+    private TradeFormModel SellModel => (TradeFormModel)sellContext.Model;
+
+    private bool ValidateSellQuantityAgainstBuy()
+    {
+        sellQuantityMessages.Clear();
+
+        var error = BuyModel.Quantity is { } buyQuantity
+                    && SellModel.Quantity is { } sellQuantity
+                    && IsValidQuantity(buyQuantity)
+                    && IsValidQuantity(sellQuantity)
+            ? TradeInputValidator.ValidateSellQuantity(buyQuantity, sellQuantity)
+            : null;
+
+        if (error is not null)
+        {
+            sellQuantityMessages.Add(new FieldIdentifier(SellModel, nameof(TradeFormModel.Quantity)), error.Message);
+        }
+
+        sellContext.NotifyValidationStateChanged();
+        return error is null;
+    }
+
+    private static bool IsValidQuantity(decimal quantity) =>
+        TradeInputValidator.ValidateField(TradeField.Quantity, quantity) is null;
+
+    private EditContext CreateEditContext()
+    {
+        var editContext = new EditContext(new TradeFormModel());
+        editContext.SetFieldCssClassProvider(BootstrapFieldCssClassProvider.Instance);
+        editContext.OnFieldChanged += HandleFieldChanged;
+        return editContext;
+    }
+
+    private void DetachForms()
+    {
+        buyContext.OnFieldChanged -= HandleFieldChanged;
+        sellContext.OnFieldChanged -= HandleFieldChanged;
+    }
+
+    private void HandleFieldChanged(object? sender, FieldChangedEventArgs args)
+    {
+        if (args.FieldIdentifier.FieldName == nameof(TradeFormModel.Quantity))
+        {
+            ValidateSellQuantityAgainstBuy();
+        }
+
+        if (result is null && errorMessage is null)
+        {
+            return;
+        }
+
+        ClearOutcome();
+        StateHasChanged();
+    }
+
+    private void ClearOutcome()
+    {
+        result = null;
+        errorMessage = null;
+    }
+
+    public void Dispose() => DetachForms();
+}

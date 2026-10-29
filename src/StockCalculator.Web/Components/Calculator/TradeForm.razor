@@ -1,0 +1,86 @@
+<section class="card h-100 shadow-sm" aria-labelledby="@HeadingId">
+    <div class="card-header">
+        <h2 id="@HeadingId" class="h5 mb-0">@Title</h2>
+    </div>
+
+    <div class="card-body">
+        <EditForm EditContext="EditContext">
+            <DataAnnotationsValidator />
+
+            <div class="mb-3">
+                <label for="@QuantityId" class="form-label">Ilość akcji</label>
+                <InputNumber id="@QuantityId" class="form-control" @bind-Value="Model.Quantity"
+                             DisplayName="Ilość akcji" ParsingErrorMessage="Pole {0} musi być liczbą."
+                             min="0" step="any" inputmode="decimal" autocomplete="off" />
+                <ValidationMessage For="() => Model.Quantity" />
+            </div>
+
+            <div class="mb-3">
+                <label for="@PriceId" class="form-label">Cena za akcję</label>
+                <InputNumber id="@PriceId" class="form-control" @bind-Value="Model.PricePerShare"
+                             DisplayName="Cena za akcję" ParsingErrorMessage="Pole {0} musi być liczbą."
+                             min="0" step="any" inputmode="decimal" autocomplete="off" />
+                <ValidationMessage For="() => Model.PricePerShare" />
+            </div>
+
+            <div>
+                <label for="@CommissionId" class="form-label">Prowizja %</label>
+                <div class="input-group">
+                    <InputNumber id="@CommissionId" class="form-control" @bind-Value="Model.CommissionPercent"
+                                 DisplayName="Prowizja %" ParsingErrorMessage="Pole {0} musi być liczbą."
+                                 min="0" max="100" step="any" inputmode="decimal" autocomplete="off" />
+                    <span class="input-group-text">%</span>
+                </div>
+                <ValidationMessage For="() => Model.CommissionPercent" />
+            </div>
+        </EditForm>
+    </div>
+
+    @if (Calculation is not null)
+    {
+        <div class="card-footer">
+            <dl class="row mb-0">
+                <dt class="col-7 fw-normal text-body-secondary">Wartość akcji</dt>
+                <dd class="col-5 text-end mb-1">@NumberFormatter.Money(Calculation.StocksValue)</dd>
+
+                <dt class="col-7 fw-normal text-body-secondary">Prowizja</dt>
+                <dd class="col-5 text-end mb-1">@NumberFormatter.Money(Calculation.Commission)</dd>
+
+                <dt class="col-7">@TotalLabel</dt>
+                <dd class="col-5 text-end mb-0 fw-semibold">@NumberFormatter.Money(Calculation.Total)</dd>
+            </dl>
+        </div>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string IdPrefix { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public EditContext EditContext { get; set; } = default!;
+
+    [Parameter]
+    public TradeCalculation? Calculation { get; set; }
+
+    private TradeFormModel Model => (TradeFormModel)EditContext.Model;
+
+    private string HeadingId => $"{IdPrefix}-heading";
+    private string QuantityId => $"{IdPrefix}-quantity";
+    private string PriceId => $"{IdPrefix}-price";
+    private string CommissionId => $"{IdPrefix}-commission";
+
+    private string TotalLabel => Calculation?.Side == TradeSide.Sell ? "Wartość całkowita" : "Koszt całkowity";
+
+    protected override void OnParametersSet()
+    {
+        if (EditContext.Model is not TradeFormModel)
+        {
+            throw new InvalidOperationException(
+                $"{nameof(TradeForm)} requires an {nameof(EditContext)} bound to {nameof(TradeFormModel)}.");
+        }
+    }
+}
