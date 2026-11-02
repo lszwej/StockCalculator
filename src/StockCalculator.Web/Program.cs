@@ -2,7 +2,9 @@ using System.Globalization;
 using Microsoft.Extensions.Hosting.WindowsServices;
 using Serilog;
 using StockCalculator.Core.Calculation;
+using StockCalculator.Core.ExchangeRates;
 using StockCalculator.Web.Components;
+using StockCalculator.Web.ExchangeRates;
 using StockCalculator.Web.Logging;
 
 Log.Logger = new LoggerConfiguration()
@@ -32,6 +34,16 @@ try
         .AddInteractiveServerComponents();
 
     builder.Services.AddSingleton<IStockTradeCalculator, StockTradeCalculator>();
+    builder.Services.AddHttpClient<IExchangeRateProvider, NbpExchangeRateProvider>(client =>
+    {
+        client.BaseAddress = NbpExchangeRateProvider.ApiBaseAddress;
+        client.Timeout = NbpExchangeRateProvider.RequestTimeout;
+    });
+    builder.Services.AddSingleton(TimeProvider.System);
+    builder.Services.AddSingleton<ExchangeRateStore>();
+    builder.Services.AddOptions<ExchangeRateRefreshOptions>()
+        .Bind(builder.Configuration.GetSection(ExchangeRateRefreshOptions.SectionName));
+    builder.Services.AddHostedService<ExchangeRateRefreshService>();
 
     var app = builder.Build();
 

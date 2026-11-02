@@ -30,7 +30,7 @@ public sealed class StockTradeCalculator(ILogger<StockTradeCalculator> logger) :
         var commission = stocksValue * input.CommissionPercent / PercentDivisor;
         var total = stocksValue + commission;
 
-        return new TradeCalculation(side, stocksValue, commission, total);
+        return new TradeCalculation(side, stocksValue, commission, total, input.Currency);
     }
 
     public ProfitLossResult CalculateProfitLoss(TradeInput buy, TradeInput sell)
@@ -42,6 +42,11 @@ public sealed class StockTradeCalculator(ILogger<StockTradeCalculator> logger) :
             if (TradeInputValidator.ValidateSellQuantity(buy.Quantity, sell.Quantity) is { } sellQuantityError)
             {
                 throw new TradeValidationException(TradeSide.Sell, [sellQuantityError]);
+            }
+
+            if (TradeInputValidator.ValidateSellCurrency(buy.Currency, sell.Currency) is { } sellCurrencyError)
+            {
+                throw new TradeValidationException(TradeSide.Sell, [sellCurrencyError]);
             }
 
             var roundedAmount = Math.Round(

@@ -2,11 +2,14 @@
 @rendermode InteractiveServer
 @implements IDisposable
 @inject IStockTradeCalculator Calculator
+@inject ExchangeRateStore ExchangeRates
 @inject ILogger<Home> Logger
 
 <PageTitle>Kalkulator zysku i straty z akcji</PageTitle>
 
 <h1 class="h3 mb-4" tabindex="-1">Kalkulator zysku i straty z akcji</h1>
+
+<ExchangeRatesPanel RatesBySymbol="ExchangeRates.RatesBySymbol" />
 
 <div class="row g-4">
     <div class="col-md-6">
@@ -33,19 +36,27 @@
     private EditContext buyContext = default!;
     private EditContext sellContext = default!;
     private ValidationMessageStore sellQuantityMessages = default!;
+    private ValidationMessageStore sellCurrencyMessages = default!;
     private ProfitLossResult? result;
     private string? errorMessage;
 
-    protected override void OnInitialized() => CreateForms();
+    protected override void OnInitialized()
+    {
+        CreateForms();
+        ExchangeRates.RatesChanged += HandleExchangeRatesChanged;
+    }
+
+    private void HandleExchangeRatesChanged() => _ = InvokeAsync(StateHasChanged);
 
     private void Calculate()
     {
         ClearOutcome();
-        sellQuantityMessages.Clear();
 
+        var isSellQuantityValid = ValidateSellQuantityAgainstBuy();
+        var isSellCurrencyValid = ValidateSellCurrencyAgainstBuy();
         var isBuyValid = buyContext.Validate();
         var isSellValid = sellContext.Validate();
-        if (!isBuyValid || !isSellValid || !ValidateSellQuantityAgainstBuy())
+        if (!isBuyValid || !isSellValid || !isSellQuantityValid || !isSellCurrencyValid)
         {
             Logger.LogWarning(
                 "Calculation rejected by form validation. Buy errors: {BuyErrors}. Sell errors: {SellErrors}",
@@ -75,6 +86,7 @@
         buyContext = CreateEditContext();
         sellContext = CreateEditContext();
         sellQuantityMessages = new ValidationMessageStore(sellContext);
+        sellCurrencyMessages = new ValidationMessageStore(sellContext);
         ClearOutcome();
     }
 
@@ -83,8 +95,6 @@
 
     private bool ValidateSellQuantityAgainstBuy()
     {
-        sellQuantityMessages.Clear();
-
         var error = BuyModel.Quantity is { } buyQuantity
                     && SellModel.Quantity is { } sellQuantity
                     && IsValidQuantity(buyQuantity)
@@ -92,9 +102,22 @@
             ? TradeInputValidator.ValidateSellQuantity(buyQuantity, sellQuantity)
             : null;
 
+        return ReportSellFieldError(sellQuantityMessages, nameof(TradeFormModel.Quantity), error);
+    }
+
+    private bool ValidateSellCurrencyAgainstBuy() =>
+        ReportSellFieldError(
+            sellCurrencyMessages,
+            nameof(TradeFormModel.Currency),
+            TradeInputValidator.ValidateSellCurrency(BuyModel.Currency, SellModel.Currency));
+
+    private bool ReportSellFieldError(ValidationMessageStore messages, string fieldName, TradeValidationError? error)
+    {
+        messages.Clear();
+
         if (error is not null)
         {
-            sellQuantityMessages.Add(new FieldIdentifier(SellModel, nameof(TradeFormModel.Quantity)), error.Message);
+            messages.Add(new FieldIdentifier(SellModel, fieldName), error.Message);
         }
 
         sellContext.NotifyValidationStateChanged();
@@ -125,6 +148,11 @@
             ValidateSellQuantityAgainstBuy();
         }
 
+        if (args.FieldIdentifier.FieldName == nameof(TradeFormModel.Currency))
+        {
+            ValidateSellCurrencyAgainstBuy();
+        }
+
         if (result is null && errorMessage is null)
         {
             return;
@@ -140,5 +168,9 @@
         errorMessage = null;
     }
 
-    public void Dispose() => DetachForms();
+    public void Dispose()
+    {
+        ExchangeRates.RatesChanged -= HandleExchangeRatesChanged;
+        DetachForms();
+    }
 }

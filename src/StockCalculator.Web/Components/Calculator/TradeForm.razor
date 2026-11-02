@@ -15,12 +15,24 @@
                 <ValidationMessage For="() => Model.Quantity" />
             </div>
 
-            <div class="mb-3">
-                <label for="@PriceId" class="form-label">Cena za akcję</label>
-                <InputNumber id="@PriceId" class="form-control" @bind-Value="Model.PricePerShare"
-                             DisplayName="Cena za akcję" ParsingErrorMessage="Pole {0} musi być liczbą."
-                             min="0" step="any" inputmode="decimal" autocomplete="off" />
-                <ValidationMessage For="() => Model.PricePerShare" />
+            <div class="row g-2 mb-3">
+                <div class="col">
+                    <label for="@PriceId" class="form-label">Cena za akcję</label>
+                    <InputNumber id="@PriceId" class="form-control" @bind-Value="Model.PricePerShare"
+                                 DisplayName="Cena za akcję" ParsingErrorMessage="Pole {0} musi być liczbą."
+                                 min="0" step="any" inputmode="decimal" autocomplete="off" />
+                    <ValidationMessage For="() => Model.PricePerShare" />
+                </div>
+                <div class="col-4 col-xl-3">
+                    <label for="@CurrencyId" class="form-label">Waluta</label>
+                    <InputSelect id="@CurrencyId" class="form-select" @bind-Value="Model.Currency">
+                        @foreach (var currency in TradeCurrencies.All)
+                        {
+                            <option value="@currency">@currency</option>
+                        }
+                    </InputSelect>
+                    <ValidationMessage For="() => Model.Currency" />
+                </div>
             </div>
 
             <div>
@@ -41,13 +53,13 @@
         <div class="card-footer">
             <dl class="row mb-0">
                 <dt class="col-7 fw-normal text-body-secondary">Wartość akcji</dt>
-                <dd class="col-5 text-end mb-1">@NumberFormatter.Money(Calculation.StocksValue)</dd>
+                <dd class="col-5 text-end mb-1">@NumberFormatter.Money(Calculation.StocksValue, Calculation.Currency)</dd>
 
                 <dt class="col-7 fw-normal text-body-secondary">Prowizja</dt>
-                <dd class="col-5 text-end mb-1">@NumberFormatter.Money(Calculation.Commission)</dd>
+                <dd class="col-5 text-end mb-1">@NumberFormatter.Money(Calculation.Commission, Calculation.Currency)</dd>
 
                 <dt class="col-7">@TotalLabel</dt>
-                <dd class="col-5 text-end mb-0 fw-semibold">@NumberFormatter.Money(Calculation.Total)</dd>
+                <dd class="col-5 text-end mb-0 fw-semibold">@NumberFormatter.Money(Calculation.Total, Calculation.Currency)</dd>
             </dl>
         </div>
     }
@@ -71,6 +83,7 @@
     private string HeadingId => $"{IdPrefix}-heading";
     private string QuantityId => $"{IdPrefix}-quantity";
     private string PriceId => $"{IdPrefix}-price";
+    private string CurrencyId => $"{IdPrefix}-currency";
     private string CommissionId => $"{IdPrefix}-commission";
 
     private string TotalLabel => Calculation?.Side == TradeSide.Sell ? "Wartość całkowita" : "Koszt całkowity";

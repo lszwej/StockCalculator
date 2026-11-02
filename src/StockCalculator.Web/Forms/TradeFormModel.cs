@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using StockCalculator.Core.ExchangeRates;
 using StockCalculator.Core.Models;
 using StockCalculator.Core.Validation;
 
@@ -14,6 +15,8 @@ public sealed class TradeFormModel
     [TradeFieldRule(TradeField.PricePerShare)]
     public decimal? PricePerShare { get; set; }
 
+    public string Currency { get; set; } = TradeCurrencies.Pln;
+
     [Required(ErrorMessage = "Podaj prowizję.")]
     [TradeFieldRule(TradeField.CommissionPercent)]
     public decimal? CommissionPercent { get; set; }
@@ -21,7 +24,8 @@ public sealed class TradeFormModel
     public TradeInput ToTradeInput() => new(
         Quantity ?? throw MissingValue(nameof(Quantity)),
         PricePerShare ?? throw MissingValue(nameof(PricePerShare)),
-        CommissionPercent ?? throw MissingValue(nameof(CommissionPercent)));
+        CommissionPercent ?? throw MissingValue(nameof(CommissionPercent)),
+        Currency);
 
     private static InvalidOperationException MissingValue(string propertyName) =>
         new($"{propertyName} must be provided before conversion to {nameof(TradeInput)}.");

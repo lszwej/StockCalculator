@@ -1,0 +1,22 @@
+<div class="card mb-4">
+    <div class="card-body py-2">
+        <div class="fw-semibold mb-1">Średnie kursy NBP na dziś</div>
+        <dl class="row mb-0">
+            @foreach (var currency in Enum.GetValues<CurrencyCode>().Select(code => code.ToString()))
+            {
+                <dt class="col-3 col-sm-2 mb-0">@currency</dt>
+                <dd class="col-9 col-sm-10 mb-0">@FormatRate(currency)</dd>
+            }
+        </dl>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyDictionary<string, decimal> RatesBySymbol { get; set; } = default!;
+
+    private string FormatRate(string currency) =>
+        RatesBySymbol.TryGetValue(currency, out var rate)
+            ? $"{NumberFormatter.ExchangeRate(rate)} zł"
+            : "brak kursu na dziś";
+}

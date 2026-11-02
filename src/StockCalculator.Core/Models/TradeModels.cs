@@ -1,3 +1,5 @@
+using StockCalculator.Core.ExchangeRates;
+
 namespace StockCalculator.Core.Models;
 
 public enum TradeSide
@@ -13,9 +15,18 @@ public enum ProfitLossKind
     BreakEven,
 }
 
-public sealed record TradeInput(decimal Quantity, decimal PricePerShare, decimal CommissionPercent);
+public sealed record TradeInput(
+    decimal Quantity,
+    decimal PricePerShare,
+    decimal CommissionPercent,
+    string Currency = TradeCurrencies.Pln);
 
-public sealed record TradeCalculation(TradeSide Side, decimal StocksValue, decimal Commission, decimal Total);
+public sealed record TradeCalculation(
+    TradeSide Side,
+    decimal StocksValue,
+    decimal Commission,
+    decimal Total,
+    string Currency = TradeCurrencies.Pln);
 
 public sealed record ProfitLossResult(
     TradeCalculation Buy,
@@ -23,4 +34,7 @@ public sealed record ProfitLossResult(
     decimal GrossAmount,
     decimal CapitalGainsTax,
     decimal NetAmount,
-    ProfitLossKind Kind);
+    ProfitLossKind Kind)
+{
+    public string Currency => Buy.Currency;
+}

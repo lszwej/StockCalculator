@@ -90,6 +90,27 @@ public class TradeInputValidatorTests
         error!.Field.Should().Be(TradeField.Quantity);
     }
 
+    [Theory]
+    [InlineData("PLN")]
+    [InlineData("EUR")]
+    [InlineData("USD")]
+    public void ValidateSellCurrency_WhenCurrenciesMatch_ReturnsNull(string currency)
+    {
+        TradeInputValidator.ValidateSellCurrency(currency, currency).Should().BeNull();
+    }
+
+    [Theory]
+    [InlineData("PLN", "EUR")]
+    [InlineData("USD", "PLN")]
+    [InlineData("EUR", "USD")]
+    public void ValidateSellCurrency_WhenCurrenciesDiffer_ReturnsCurrencyError(string buyCurrency, string sellCurrency)
+    {
+        var error = TradeInputValidator.ValidateSellCurrency(buyCurrency, sellCurrency);
+
+        error.Should().NotBeNull();
+        error!.Field.Should().Be(TradeField.Currency);
+    }
+
     [Fact]
     public void ValidateField_WithUnknownField_Throws()
     {
