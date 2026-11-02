@@ -150,7 +150,7 @@
 
         if (args.FieldIdentifier.FieldName == nameof(TradeFormModel.Currency))
         {
-            ValidateSellCurrencyAgainstBuy();
+            ReportSellFieldError(sellCurrencyMessages, nameof(TradeFormModel.Currency), error: null);
         }
 
         if (result is null && errorMessage is null)

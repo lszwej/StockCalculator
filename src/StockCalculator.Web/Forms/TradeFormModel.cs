@@ -19,7 +19,7 @@ public sealed class TradeFormModel
 
     [Required(ErrorMessage = "Podaj prowizję.")]
     [TradeFieldRule(TradeField.CommissionPercent)]
-    public decimal? CommissionPercent { get; set; }
+    public decimal? CommissionPercent { get; set; } = 0m;
 
     public TradeInput ToTradeInput() => new(
         Quantity ?? throw MissingValue(nameof(Quantity)),

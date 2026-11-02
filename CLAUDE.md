@@ -7,7 +7,7 @@ Aplikacja webowa .NET 10 (Blazor Web App, Interactive Server) — kalkulator zys
 - Dwa formularze: **Kupno** i **Sprzedaż**, każdy z polami:
   - Ilość akcji — liczba rzeczywista dodatnia (> 0) (`decimal`, limit techniczny 1e12)
   - Cena za akcję — liczba rzeczywista dodatnia (> 0) (`decimal`, limit techniczny 1e12)
-  - Prowizja % — liczba rzeczywista nieujemna, maksimum 100
+  - Prowizja % — liczba rzeczywista nieujemna, maksimum 100, domyślnie 0 (także po „Wyczyść”); pole wyczyszczone ręcznie zgłasza błąd „Podaj prowizję.”
 - Przeliczenie dla każdego formularza:
   - `stocks = ilość * cena`
   - `commission = stocks * prowizja / 100`
@@ -24,7 +24,7 @@ Aplikacja webowa .NET 10 (Blazor Web App, Interactive Server) — kalkulator zys
 - Zmiana dowolnego pola czyści poprzedni wynik (brak nieaktualnych danych).
 - Kursy walut: średnie kursy **USD** i **EUR** z bieżącego dnia wg NBP, pobierane podczas uruchamiania aplikacji i raz dziennie o 12:30 przez background worker, trzymane w pamięci w `Dictionary<string, decimal>` (klucz: symbol waluty, wartość: kurs). Pokazywane na stronie głównej nad formularzami (`ExchangeRatesPanel`).
 - Pole wyboru **Waluta** w obu formularzach, w jednej linii z polem „Cena za akcję”: PLN, EUR, USD, domyślnie PLN. Pole jest zawsze aktywne, także gdy brakuje kursu lub jego pobranie się nie powiodło, bo obliczenia nie korzystają z kursów. Spoza tej listy waluta jest odrzucana (`TradeInputValidator.ValidateCurrency`).
-- Waluta przy Kupnie i Sprzedaży musi być identyczna (`TradeInputValidator.ValidateSellCurrency`; w UI komunikat pod polem „Waluta” Sprzedaży, sprawdzany na bieżąco po zmianie którejkolwiek waluty; `StockTradeCalculator` odrzuca różne waluty także niezależnie od UI). Przy różnych walutach „Przelicz” nie liczy wyniku, a odrzucenie trafia do `Logs\Warning`.
+- Waluta przy Kupnie i Sprzedaży musi być identyczna (`TradeInputValidator.ValidateSellCurrency`; w UI komunikat pod polem „Waluta” Sprzedaży, sprawdzany dopiero po kliknięciu „Przelicz” i znikający po zmianie którejkolwiek waluty; `StockTradeCalculator` odrzuca różne waluty także niezależnie od UI). Przy różnych walutach „Przelicz” nie liczy wyniku, a odrzucenie trafia do `Logs\Warning`.
 - Obliczenia w wybranej walucie: wartość akcji, prowizja, wynik brutto, podatek i wynik netto są liczone i pokazywane w walucie z formularza, bez przeliczania na PLN (`TradeInput.Currency`, `TradeCalculation.Currency`, `ProfitLossResult.Currency`). Kursy NBP mają charakter wyłącznie informacyjny: są pokazywane w panelu, a nie wpływają na obliczenia ani na pole Waluta. Zmiana waluty czyści wynik jak zmiana każdego pola.
   - Uproszczenie: podatek Belki to 19% wyniku w wybranej walucie. Do PIT-38 przychód i koszty przelicza się na PLN po kursie średnim NBP z ostatniego dnia roboczego przed dniem każdej transakcji, więc dla walut obcych wynik i podatek są tylko szacunkiem.
 

@@ -8,9 +8,9 @@ Prosty kalkulator do obliczania zysków lub strat z transakcji akcjami. Aplikacj
   - **Ilość akcji**: liczba rzeczywista większa od 0.
   - **Cena za akcję**: liczba rzeczywista większa od 0.
   - **Waluta**: PLN, EUR lub USD, domyślnie PLN.
-  - **Prowizja %**: liczba nieujemna, maksymalnie 100.
+  - **Prowizja %**: liczba nieujemna, maksymalnie 100, domyślnie 0.
 - Ilość akcji przy sprzedaży nie może przekraczać ilości przy kupnie. Aplikacja sprawdza to na bieżąco.
-- Waluta przy kupnie i sprzedaży musi być taka sama. Aplikacja sprawdza to na bieżąco i przy różnych walutach pokazuje błąd zamiast wyniku.
+- Waluta przy kupnie i sprzedaży musi być taka sama. Aplikacja sprawdza to po kliknięciu **Przelicz** i przy różnych walutach pokazuje błąd zamiast wyniku. Błąd znika po zmianie waluty.
 - Obliczenia są wykonywane w wybranej walucie, bez przeliczania na PLN, i w tej walucie są podawane wszystkie kwoty w wynikach.
 - Wynik pokazuje wartość brutto, podatek Belki (19%) i wartość netto, z kolorem zależnym od rodzaju wyniku:
   - zysk na zielono;
