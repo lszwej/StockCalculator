@@ -1,3 +1,4 @@
+using StockCalculator.Core.ExchangeRates;
 using StockCalculator.Core.Models;
 
 namespace StockCalculator.Core.Validation;
@@ -7,6 +8,7 @@ public enum TradeField
     Quantity,
     PricePerShare,
     CommissionPercent,
+    Currency,
 }
 
 public sealed record TradeValidationError(TradeField Field, string Message);
@@ -29,6 +31,7 @@ public static class TradeInputValidator
                 ValidateField(TradeField.Quantity, input.Quantity),
                 ValidateField(TradeField.PricePerShare, input.PricePerShare),
                 ValidateField(TradeField.CommissionPercent, input.CommissionPercent),
+                ValidateCurrency(input.Currency),
             }
             .OfType<TradeValidationError>()
             .ToArray();
@@ -42,9 +45,19 @@ public static class TradeInputValidator
         _ => throw new ArgumentOutOfRangeException(nameof(field), field, "Unsupported trade field."),
     };
 
+    public static TradeValidationError? ValidateCurrency(string currency) =>
+        TradeCurrencies.All.Contains(currency)
+            ? null
+            : new TradeValidationError(TradeField.Currency, "Wybrana waluta nie jest obsługiwana.");
+
     public static TradeValidationError? ValidateSellQuantity(decimal buyQuantity, decimal sellQuantity) =>
         sellQuantity > buyQuantity
             ? new TradeValidationError(TradeField.Quantity, "Ilość akcji przy sprzedaży nie może przekraczać ilości przy kupnie.")
+            : null;
+
+    public static TradeValidationError? ValidateSellCurrency(string buyCurrency, string sellCurrency) =>
+        sellCurrency != buyCurrency
+            ? new TradeValidationError(TradeField.Currency, "Waluta musi być taka sama przy kupnie i sprzedaży.")
             : null;
 
     private static TradeValidationError? ValidatePositive(TradeField field, string displayName, decimal value, decimal maxValue) =>

@@ -27,6 +27,45 @@ public class StockTradeCalculatorTests
     }
 
     [Fact]
+    public void CalculateTrade_InForeignCurrency_KeepsValuesInThatCurrency()
+    {
+        var result = _sut.CalculateTrade(TradeSide.Buy, new TradeInput(10m, 100m, 1m, "USD"));
+
+        result.Should().Be(new TradeCalculation(TradeSide.Buy, 1000m, 10m, 1010m, "USD"));
+    }
+
+    [Fact]
+    public void CalculateProfitLoss_InForeignCurrency_ReturnsAmountsInThatCurrency()
+    {
+        var result = _sut.CalculateProfitLoss(new TradeInput(10m, 100m, 0m, "EUR"), new TradeInput(10m, 120m, 0m, "EUR"));
+
+        result.GrossAmount.Should().Be(200m);
+        result.CapitalGainsTax.Should().Be(38m);
+        result.NetAmount.Should().Be(162m);
+        result.Kind.Should().Be(ProfitLossKind.Profit);
+        result.Currency.Should().Be("EUR");
+    }
+
+    [Fact]
+    public void CalculateProfitLoss_WithDifferentCurrencies_ThrowsValidationExceptionForSellCurrency()
+    {
+        var act = () => _sut.CalculateProfitLoss(new TradeInput(10m, 100m, 0m, "EUR"), new TradeInput(10m, 100m, 0m, "USD"));
+
+        var exception = act.Should().Throw<TradeValidationException>().Which;
+        exception.Side.Should().Be(TradeSide.Sell);
+        exception.Errors.Should().ContainSingle(error => error.Field == TradeField.Currency);
+    }
+
+    [Fact]
+    public void CalculateTrade_WithUnsupportedCurrency_ThrowsValidationException()
+    {
+        var act = () => _sut.CalculateTrade(TradeSide.Buy, new TradeInput(10m, 100m, 1m, "GBP"));
+
+        act.Should().Throw<TradeValidationException>()
+            .Which.Errors.Should().ContainSingle(error => error.Field == TradeField.Currency);
+    }
+
+    [Fact]
     public void CalculateTrade_WithFractionalValues_KeepsDecimalPrecision()
     {
         var result = _sut.CalculateTrade(TradeSide.Buy, new TradeInput(2.5m, 10.4m, 0.39m));
