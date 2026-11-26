@@ -15,4 +15,6 @@ public static class NumberFormatter
             : $"{value.ToString("N2", PolishCulture)}{NonBreakingSpace}{currency}";
 
     public static string ExchangeRate(decimal value) => value.ToString("N4", PolishCulture);
+
+    public static string Date(DateOnly value) => value.ToString("d", PolishCulture);
 }

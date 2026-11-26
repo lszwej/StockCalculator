@@ -6,23 +6,21 @@ namespace StockCalculator.Core.Tests;
 
 public class ExchangeRateStoreTests
 {
-    private static readonly DateOnly Today = new(2026, 11, 2);
+    private static readonly DateOnly LastPublicationDate = new(2026, 11, 2);
 
-    private readonly StubTimeProvider _clock = new(new DateTimeOffset(2026, 11, 2, 12, 0, 0, TimeSpan.Zero));
-    private readonly ExchangeRateStore _store;
-
-    public ExchangeRateStoreTests() => _store = new ExchangeRateStore(NullLogger<ExchangeRateStore>.Instance, _clock);
+    private readonly ExchangeRateStore _store = new(NullLogger<ExchangeRateStore>.Instance);
 
     [Fact]
     public void BeforeLoading_HasNoRates()
     {
         _store.RatesBySymbol.Should().BeEmpty();
+        _store.Rates.EffectiveDatesBySymbol.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task LoadTodayRatesAsync_WhenAllRatesArePublished_StoresThemBySymbol()
+    public async Task LoadLatestRatesAsync_WhenAllRatesArePublished_StoresThemBySymbol()
     {
-        await _store.LoadTodayRatesAsync(new StubProvider(currency => new ExchangeRate(currency, RateOf(currency), Today)));
+        await _store.LoadLatestRatesAsync(AllRatesProvider());
 
         _store.RatesBySymbol.Should().BeEquivalentTo(new Dictionary<string, decimal>
         {
@@ -32,165 +30,148 @@ public class ExchangeRateStoreTests
     }
 
     [Fact]
-    public async Task LoadTodayRatesAsync_WhenRateIsNotPublished_ReportsMissingRates()
+    public async Task LoadLatestRatesAsync_StoresEffectiveDateOfEachRate()
     {
-        await _store.LoadTodayRatesAsync(new StubProvider(currency =>
-            currency == CurrencyCode.USD ? null : new ExchangeRate(currency, RateOf(currency), Today)));
+        var olderPublicationDate = LastPublicationDate.AddDays(-3);
 
-        _store.RatesBySymbol.Should().ContainKey("EUR").And.NotContainKey("USD");
+        await _store.LoadLatestRatesAsync(new StubProvider(currency =>
+            new ExchangeRate(currency, RateOf(currency), currency == CurrencyCode.USD ? olderPublicationDate : LastPublicationDate)));
+
+        _store.Rates.EffectiveDatesBySymbol.Should().BeEquivalentTo(new Dictionary<string, DateOnly>
+        {
+            ["USD"] = olderPublicationDate,
+            ["EUR"] = LastPublicationDate,
+        });
+        _store.Rates.Find(CurrencyCode.USD).Should().Be(new ExchangeRate(CurrencyCode.USD, 3.9389m, olderPublicationDate));
     }
 
     [Fact]
-    public async Task LoadTodayRatesAsync_WhenRetrievalFails_ReportsMissingRates()
+    public async Task LoadLatestRatesAsync_WhenNoRateIsReturnedOnFirstLoad_ReportsMissingRate()
     {
-        await _store.LoadTodayRatesAsync(new StubProvider(currency => throw new ExchangeRateUnavailableException(currency)));
+        await _store.LoadLatestRatesAsync(new StubProvider(currency =>
+            currency == CurrencyCode.USD ? null : PublishedRate(currency)));
+
+        _store.RatesBySymbol.Should().ContainKey("EUR").And.NotContainKey("USD");
+        _store.Rates.Find(CurrencyCode.USD).Should().BeNull();
+    }
+
+    [Fact]
+    public async Task LoadLatestRatesAsync_WhenFirstLoadFails_HasNoRates()
+    {
+        await _store.LoadLatestRatesAsync(FailingProvider());
 
         _store.RatesBySymbol.Should().BeEmpty();
     }
 
     [Fact]
-    public async Task LoadTodayRatesAsync_WhenCancelled_PropagatesCancellation()
+    public async Task LoadLatestRatesAsync_WhenCancelled_PropagatesCancellation()
     {
-        var act = () => _store.LoadTodayRatesAsync(new StubProvider(_ => throw new OperationCanceledException()));
+        var act = () => _store.LoadLatestRatesAsync(new StubProvider(_ => throw new OperationCanceledException()));
 
         await act.Should().ThrowAsync<OperationCanceledException>();
     }
 
     [Fact]
-    public async Task LoadTodayRatesAsync_WhenRatesAreFirstLoaded_RaisesRatesChanged()
+    public async Task LoadLatestRatesAsync_WhenRatesAreFirstLoaded_RaisesRatesChanged()
     {
         var changeCount = CountRatesChanged();
 
-        await _store.LoadTodayRatesAsync(AllRatesProvider());
+        await _store.LoadLatestRatesAsync(AllRatesProvider());
 
         changeCount().Should().Be(1);
     }
 
     [Fact]
-    public async Task LoadTodayRatesAsync_WhenRatesAreUnchanged_DoesNotRaiseRatesChanged()
+    public async Task LoadLatestRatesAsync_WhenRatesAreUnchanged_DoesNotRaiseRatesChanged()
     {
-        await _store.LoadTodayRatesAsync(AllRatesProvider());
+        await _store.LoadLatestRatesAsync(AllRatesProvider());
         var changeCount = CountRatesChanged();
 
-        await _store.LoadTodayRatesAsync(AllRatesProvider());
+        await _store.LoadLatestRatesAsync(AllRatesProvider());
 
         changeCount().Should().Be(0);
     }
 
     [Fact]
-    public async Task LoadTodayRatesAsync_WhenNoRatesWereOrAreAvailable_DoesNotRaiseRatesChanged()
+    public async Task LoadLatestRatesAsync_WhenNoRatesWereOrAreAvailable_DoesNotRaiseRatesChanged()
     {
         var changeCount = CountRatesChanged();
 
-        await _store.LoadTodayRatesAsync(new StubProvider(_ => null));
+        await _store.LoadLatestRatesAsync(new StubProvider(_ => null));
 
         changeCount().Should().Be(0);
     }
 
     [Fact]
-    public async Task LoadTodayRatesAsync_WhenRateValueChanges_ReplacesRateAndRaisesRatesChanged()
+    public async Task LoadLatestRatesAsync_WhenRateValueChanges_ReplacesRateAndRaisesRatesChanged()
     {
-        await _store.LoadTodayRatesAsync(AllRatesProvider());
+        await _store.LoadLatestRatesAsync(AllRatesProvider());
         var changeCount = CountRatesChanged();
 
-        await _store.LoadTodayRatesAsync(new StubProvider(currency => new ExchangeRate(currency, 5m, Today)));
+        await _store.LoadLatestRatesAsync(new StubProvider(currency => new ExchangeRate(currency, 5m, LastPublicationDate)));
 
         changeCount().Should().Be(1);
         _store.RatesBySymbol["USD"].Should().Be(5m);
     }
 
     [Fact]
-    public async Task LoadTodayRatesAsync_WhenRateIsNoLongerPublished_RemovesItAndRaisesRatesChanged()
+    public async Task LoadLatestRatesAsync_WhenNewerRateIsPublished_ReplacesRateAndDateAndRaisesRatesChanged()
     {
-        await _store.LoadTodayRatesAsync(AllRatesProvider());
+        await _store.LoadLatestRatesAsync(AllRatesProvider());
         var changeCount = CountRatesChanged();
+        var nextPublicationDate = LastPublicationDate.AddDays(1);
 
-        await _store.LoadTodayRatesAsync(new StubProvider(_ => null));
+        await _store.LoadLatestRatesAsync(new StubProvider(currency => new ExchangeRate(currency, RateOf(currency), nextPublicationDate)));
 
         changeCount().Should().Be(1);
-        _store.RatesBySymbol.Should().BeEmpty();
+        _store.Rates.EffectiveDatesBySymbol["USD"].Should().Be(nextPublicationDate);
     }
 
     [Fact]
-    public async Task LoadTodayRatesAsync_WhenRefreshFailsOnSameDay_KeepsTodayRates()
+    public async Task LoadLatestRatesAsync_WhenNoRateIsReturnedLater_KeepsLastKnownRate()
     {
-        await _store.LoadTodayRatesAsync(AllRatesProvider());
+        await _store.LoadLatestRatesAsync(AllRatesProvider());
         var changeCount = CountRatesChanged();
 
-        await _store.LoadTodayRatesAsync(FailingProvider());
+        await _store.LoadLatestRatesAsync(new StubProvider(_ => null));
 
         changeCount().Should().Be(0);
-        _store.RatesBySymbol["USD"].Should().Be(3.9389m);
-        _store.RatesBySymbol["EUR"].Should().Be(4.4185m);
+        _store.Rates.Find(CurrencyCode.USD).Should().Be(PublishedRate(CurrencyCode.USD));
     }
 
     [Fact]
-    public async Task LoadTodayRatesAsync_WhenRefreshFailsForOneCurrency_KeepsItsRateAndUpdatesOther()
+    public async Task LoadLatestRatesAsync_WhenRefreshFails_KeepsLastKnownRates()
     {
-        await _store.LoadTodayRatesAsync(AllRatesProvider());
+        await _store.LoadLatestRatesAsync(AllRatesProvider());
+        var changeCount = CountRatesChanged();
 
-        await _store.LoadTodayRatesAsync(new StubProvider(currency =>
+        await _store.LoadLatestRatesAsync(FailingProvider());
+
+        changeCount().Should().Be(0);
+        _store.Rates.Find(CurrencyCode.USD).Should().Be(PublishedRate(CurrencyCode.USD));
+        _store.Rates.Find(CurrencyCode.EUR).Should().Be(PublishedRate(CurrencyCode.EUR));
+    }
+
+    [Fact]
+    public async Task LoadLatestRatesAsync_WhenRefreshFailsForOneCurrency_KeepsItsRateAndUpdatesOther()
+    {
+        await _store.LoadLatestRatesAsync(AllRatesProvider());
+
+        await _store.LoadLatestRatesAsync(new StubProvider(currency =>
             currency == CurrencyCode.USD
                 ? throw new ExchangeRateUnavailableException(currency)
-                : new ExchangeRate(currency, 5m, Today)));
+                : new ExchangeRate(currency, 5m, LastPublicationDate)));
 
         _store.RatesBySymbol["USD"].Should().Be(3.9389m);
         _store.RatesBySymbol["EUR"].Should().Be(5m);
     }
 
     [Fact]
-    public async Task LoadTodayRatesAsync_WhenRefreshFailsOnNextDay_RemovesYesterdayRates()
+    public async Task LoadLatestRatesAsync_WhenCancelledDuringRefresh_KeepsStoredRates()
     {
-        await _store.LoadTodayRatesAsync(AllRatesProvider());
-        _clock.Advance(TimeSpan.FromDays(1));
-        var changeCount = CountRatesChanged();
+        await _store.LoadLatestRatesAsync(AllRatesProvider());
 
-        await _store.LoadTodayRatesAsync(FailingProvider());
-
-        changeCount().Should().Be(1);
-        _store.RatesBySymbol.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task LoadTodayRatesAsync_WhenFirstLoadFails_HasNoRates()
-    {
-        await _store.LoadTodayRatesAsync(FailingProvider());
-
-        _store.RatesBySymbol.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task RemoveExpiredRates_OnSameDay_KeepsRatesWithoutRaisingRatesChanged()
-    {
-        await _store.LoadTodayRatesAsync(AllRatesProvider());
-        _clock.Advance(TimeSpan.FromHours(11.99));
-        var changeCount = CountRatesChanged();
-
-        _store.RemoveExpiredRates();
-
-        changeCount().Should().Be(0);
-        _store.RatesBySymbol.Should().HaveCount(2);
-    }
-
-    [Fact]
-    public async Task RemoveExpiredRates_AfterMidnight_RemovesRatesAndRaisesRatesChanged()
-    {
-        await _store.LoadTodayRatesAsync(AllRatesProvider());
-        _clock.Advance(TimeSpan.FromHours(12));
-        var changeCount = CountRatesChanged();
-
-        _store.RemoveExpiredRates();
-
-        changeCount().Should().Be(1);
-        _store.RatesBySymbol.Should().BeEmpty();
-    }
-
-    [Fact]
-    public async Task LoadTodayRatesAsync_WhenCancelledDuringRefresh_KeepsStoredRates()
-    {
-        await _store.LoadTodayRatesAsync(AllRatesProvider());
-
-        var act = () => _store.LoadTodayRatesAsync(new StubProvider(_ => throw new OperationCanceledException()));
+        var act = () => _store.LoadLatestRatesAsync(new StubProvider(_ => throw new OperationCanceledException()));
 
         await act.Should().ThrowAsync<OperationCanceledException>();
         _store.RatesBySymbol.Should().HaveCount(2);
@@ -203,28 +184,19 @@ public class ExchangeRateStoreTests
         return () => count;
     }
 
-    private static StubProvider AllRatesProvider() =>
-        new(currency => new ExchangeRate(currency, RateOf(currency), Today));
+    private static StubProvider AllRatesProvider() => new(PublishedRate);
 
     private static StubProvider FailingProvider() =>
         new(currency => throw new ExchangeRateUnavailableException(currency));
 
+    private static ExchangeRate PublishedRate(CurrencyCode currency) =>
+        new(currency, RateOf(currency), LastPublicationDate);
+
     private static decimal RateOf(CurrencyCode currency) => currency == CurrencyCode.USD ? 3.9389m : 4.4185m;
-
-    private sealed class StubTimeProvider(DateTimeOffset start) : TimeProvider
-    {
-        private DateTimeOffset _now = start;
-
-        public override TimeZoneInfo LocalTimeZone => TimeZoneInfo.Utc;
-
-        public override DateTimeOffset GetUtcNow() => _now;
-
-        public void Advance(TimeSpan duration) => _now += duration;
-    }
 
     private sealed class StubProvider(Func<CurrencyCode, ExchangeRate?> getRate) : IExchangeRateProvider
     {
-        public Task<ExchangeRate?> GetTodayAverageRateAsync(
+        public Task<ExchangeRate?> GetLatestAverageRateAsync(
             CurrencyCode currency,
             CancellationToken cancellationToken = default) => Task.FromResult(getRate(currency));
     }

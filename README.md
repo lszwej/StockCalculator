@@ -44,15 +44,13 @@ netto  = brutto − podatek
 
 ## Kursy walut
 
-Aplikacja pobiera średnie kursy EUR i USD z dnia bieżącego z [API NBP](https://api.nbp.pl/) (tabela A) podczas uruchamiania, a potem w tle raz dziennie o 12:30, i trzyma je w pamięci. Godzinę można zmienić w `appsettings.json` (`ExchangeRates:DailyRefreshTime`), a liczy się czas lokalny serwera. Kursy są widoczne na stronie głównej nad formularzami i mają charakter wyłącznie informacyjny: nie wpływają na obliczenia ani na pole **Waluta**.
+Aplikacja pobiera ostatnie opublikowane średnie kursy EUR i USD z [API NBP](https://api.nbp.pl/) (tabela A) podczas uruchamiania, a potem w tle raz dziennie o 12:30, i trzyma je w pamięci. Godzinę można zmienić w `appsettings.json` (`ExchangeRates:DailyRefreshTime`), a liczy się czas lokalny serwera. Kursy są widoczne na stronie głównej nad formularzami razem z datą publikacji, np. „4,0835 zł (z dnia 26.11.2026)”, i mają charakter wyłącznie informacyjny: nie wpływają na obliczenia ani na pole **Waluta**.
 
-Jeśli brakuje kursu, panel pokazuje „brak kursu na dziś”, a kalkulator działa dalej we wszystkich walutach. Dzieje się tak, gdy:
-- nie ma kursu na dany dzień: NBP nie publikuje kursów w weekendy i święta, a w dni robocze pojawiają się one około południa;
-- pobieranie się nie powiodło, a kursu z tego dnia nie ma jeszcze w pamięci, np. przez brak połączenia. Błąd trafia wtedy do `Logs\Error`.
+NBP nie publikuje kursów w weekendy i święta, a w dni robocze publikuje je około południa. Do tego czasu panel pokazuje kurs z ostatniego dnia publikacji, np. w poniedziałek rano kurs z piątku. Pobranie o 12:30 zastępuje go kursem z bieżącego dnia.
 
-Kursy obowiązują tylko w dniu pobrania. Po północy są usuwane, więc w dni robocze panel nie pokazuje kursów do pobrania o 12:30. Przy błędzie pobierania kurs z bieżącego dnia zostaje w pamięci.
+Przy błędzie pobierania zostaje ostatni znany kurs. Panel pokazuje „brak kursu” tylko wtedy, gdy od uruchomienia żadne pobranie się nie powiodło, np. przez brak połączenia. Błąd trafia wtedy do `Logs\Error`, a kalkulator działa dalej we wszystkich walutach.
 
-Nieudane pobranie nie jest ponawiane tego samego dnia. Jeśli o 12:30 NBP nie opublikuje jeszcze tabeli, panel nie pokazuje kursów do następnego dnia albo do restartu aplikacji lub usługi. Można wtedy ustawić późniejszą godzinę pobierania.
+Nieudane pobranie nie jest ponawiane tego samego dnia. Jeśli o 12:30 NBP nie opublikuje jeszcze tabeli, panel pokazuje kurs z poprzedniego dnia publikacji do następnego dnia albo do restartu aplikacji lub usługi. Można wtedy ustawić późniejszą godzinę pobierania.
 
 Otwarte strony reagują na zmianę kursów bez przeładowania i pokazują nowe wartości. Wybrane waluty i obliczony wynik zostają bez zmian.
 

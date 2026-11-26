@@ -2,73 +2,53 @@ using Microsoft.Extensions.Logging;
 
 namespace StockCalculator.Core.ExchangeRates;
 
-public sealed class ExchangeRateStore(ILogger<ExchangeRateStore> logger, TimeProvider timeProvider)
+public sealed class ExchangeRateStore(ILogger<ExchangeRateStore> logger)
 {
-    private volatile Dictionary<string, decimal> _ratesBySymbol = [];
-    private DateOnly _ratesDate;
+    private volatile ExchangeRatesSnapshot _rates = ExchangeRatesSnapshot.Empty;
 
     public event Action? RatesChanged;
 
-    public IReadOnlyDictionary<string, decimal> RatesBySymbol => _ratesBySymbol;
+    public ExchangeRatesSnapshot Rates => _rates;
 
-    private DateOnly Today => DateOnly.FromDateTime(timeProvider.GetLocalNow().DateTime);
+    public IReadOnlyDictionary<string, decimal> RatesBySymbol => _rates.RatesBySymbol;
 
-    public async Task LoadTodayRatesAsync(IExchangeRateProvider provider, CancellationToken cancellationToken = default)
+    public async Task LoadLatestRatesAsync(IExchangeRateProvider provider, CancellationToken cancellationToken = default)
     {
-        var today = Today;
-        RemoveExpiredRates();
-
         var rates = await Task.WhenAll(
-            Enum.GetValues<CurrencyCode>().Select(currency => ResolveTodayRateAsync(provider, currency, cancellationToken)));
+            Enum.GetValues<CurrencyCode>().Select(currency => ResolveLatestRateAsync(provider, currency, cancellationToken)));
 
-        _ratesDate = today;
-        ReplaceRates(rates.OfType<KeyValuePair<string, decimal>>().ToDictionary());
+        ReplaceRates(ExchangeRatesSnapshot.From(rates.OfType<ExchangeRate>()));
     }
 
-    public void RemoveExpiredRates()
-    {
-        if (_ratesDate != Today)
-        {
-            ReplaceRates([]);
-        }
-    }
-
-    private async Task<KeyValuePair<string, decimal>?> ResolveTodayRateAsync(
+    private async Task<ExchangeRate?> ResolveLatestRateAsync(
         IExchangeRateProvider provider,
         CurrencyCode currency,
         CancellationToken cancellationToken)
     {
-        var symbol = currency.ToString();
-
         try
         {
-            var rate = await provider.GetTodayAverageRateAsync(currency, cancellationToken);
+            var rate = await provider.GetLatestAverageRateAsync(currency, cancellationToken);
             if (rate is null)
             {
-                logger.LogDebug("NBP has not published a {Currency} rate for today", currency);
-                return null;
+                logger.LogDebug("NBP returned no published {Currency} rate; keeping the stored one", currency);
             }
 
-            return new(symbol, rate.AverageRateInPln);
+            return rate ?? _rates.Find(currency);
         }
         catch (ExchangeRateUnavailableException)
         {
-            return _ratesBySymbol.TryGetValue(symbol, out var storedTodayRate) ? new(symbol, storedTodayRate) : null;
+            return _rates.Find(currency);
         }
     }
 
-    private void ReplaceRates(Dictionary<string, decimal> rates)
+    private void ReplaceRates(ExchangeRatesSnapshot rates)
     {
-        if (HasSameRatesAsStored(rates))
+        if (rates.HasSameRatesAs(_rates))
         {
             return;
         }
 
-        _ratesBySymbol = rates;
+        _rates = rates;
         RatesChanged?.Invoke();
     }
-
-    private bool HasSameRatesAsStored(Dictionary<string, decimal> rates) =>
-        rates.Count == _ratesBySymbol.Count
-        && rates.All(rate => _ratesBySymbol.GetValueOrDefault(rate.Key) == rate.Value);
 }
