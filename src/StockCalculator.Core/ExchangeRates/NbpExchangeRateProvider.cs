@@ -7,7 +7,7 @@ namespace StockCalculator.Core.ExchangeRates;
 
 public interface IExchangeRateProvider
 {
-    Task<ExchangeRate?> GetTodayAverageRateAsync(CurrencyCode currency, CancellationToken cancellationToken = default);
+    Task<ExchangeRate?> GetLatestAverageRateAsync(CurrencyCode currency, CancellationToken cancellationToken = default);
 }
 
 public sealed class NbpExchangeRateProvider(HttpClient httpClient, ILogger<NbpExchangeRateProvider> logger)
@@ -16,13 +16,13 @@ public sealed class NbpExchangeRateProvider(HttpClient httpClient, ILogger<NbpEx
     public static readonly Uri ApiBaseAddress = new("https://api.nbp.pl/api/exchangerates/rates/a/");
     public static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(10);
 
-    public async Task<ExchangeRate?> GetTodayAverageRateAsync(
+    public async Task<ExchangeRate?> GetLatestAverageRateAsync(
         CurrencyCode currency,
         CancellationToken cancellationToken = default)
     {
         try
         {
-            using var response = await httpClient.GetAsync(TodayRatePath(currency), cancellationToken);
+            using var response = await httpClient.GetAsync(LatestRatePath(currency), cancellationToken);
             if (response.StatusCode == HttpStatusCode.NotFound)
             {
                 return null;
@@ -40,8 +40,8 @@ public sealed class NbpExchangeRateProvider(HttpClient httpClient, ILogger<NbpEx
         }
     }
 
-    private static string TodayRatePath(CurrencyCode currency) =>
-        $"{currency.ToString().ToLowerInvariant()}/today/?format=json";
+    private static string LatestRatePath(CurrencyCode currency) =>
+        $"{currency.ToString().ToLowerInvariant()}/?format=json";
 
     private static ExchangeRate ToExchangeRate(CurrencyCode currency, NbpRatesPayload? payload) =>
         payload is { Rates: [{ Mid: > 0 } rate] }

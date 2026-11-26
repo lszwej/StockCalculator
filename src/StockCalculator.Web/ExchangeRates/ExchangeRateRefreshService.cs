@@ -18,7 +18,7 @@ public sealed class ExchangeRateRefreshService(
 
     public override async Task StartAsync(CancellationToken cancellationToken)
     {
-        await RunGuardedAsync(() => LoadTodayRatesAsync(cancellationToken));
+        await RunGuardedAsync(() => LoadLatestRatesAsync(cancellationToken));
         _schedule.TryClaimRefresh(LocalNow);
 
         await base.StartAsync(cancellationToken);
@@ -36,20 +36,18 @@ public sealed class ExchangeRateRefreshService(
 
     private async Task ApplyScheduleAsync(CancellationToken cancellationToken)
     {
-        store.RemoveExpiredRates();
-
         if (_schedule.TryClaimRefresh(LocalNow))
         {
-            await LoadTodayRatesAsync(cancellationToken);
+            await LoadLatestRatesAsync(cancellationToken);
         }
     }
 
-    private async Task LoadTodayRatesAsync(CancellationToken cancellationToken)
+    private async Task LoadLatestRatesAsync(CancellationToken cancellationToken)
     {
         using var scope = scopeFactory.CreateScope();
         var provider = scope.ServiceProvider.GetRequiredService<IExchangeRateProvider>();
 
-        await store.LoadTodayRatesAsync(provider, cancellationToken);
+        await store.LoadLatestRatesAsync(provider, cancellationToken);
     }
 
     private async Task RunGuardedAsync(Func<Task> operation)
